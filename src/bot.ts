@@ -152,8 +152,13 @@ bot.action(/fix_approve_(.+)/, async (ctx) => {
   if (!fix) return ctx.reply('Error: Fix session expired.');
 
   try {
+    const oldWorkflow = await n8nService.getWorkflow(fix.workflowId);
     await n8nService.updateWorkflow(fix.workflowId, fix.json);
-    await ctx.editMessageText('🚀 *Hotfix Deployed Successfully.* Workflow has been updated and re-activated.');
+    
+    // Level 2: Breakdown on Update
+    const breakdown = await brainService.analyzeChange(oldWorkflow, fix.json);
+    
+    await ctx.editMessageText(`🚀 *Hotfix Deployed Successfully.* Workflow has been updated and re-activated.\n\n📊 *Change Breakdown:*\n${breakdown}`, { parse_mode: 'Markdown' });
     if (fixId) pendingFixes.delete(fixId);
   } catch (err: any) {
     await ctx.reply(`❌ *Deployment Failed:* ${err.message}`);
