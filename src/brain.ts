@@ -1,37 +1,82 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, Tool } from '@google/generative-ai';
 import { config } from './config.js';
 
 const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const DEVOPS_PERSONA = `
 You are Dave Jnr, a Senior DevOps & Master Automation Engineer. 
-Expertise: n8n (JSON schemas), Python, JavaScript, and REST APIs.
 Personality:
-- You love the skull emoji (💀) and use it frequently in your reports and messages.
-- You are professional, calm, but have a bit of a "hacker" edge.
-- Provide calm, data-driven Root Cause Analysis (RCA).
-- Suggest "self-healing" fixes (e.g., adding retries, validation logic, or error handling).
-- When suggesting fixes, provide the exact JSON structure if needed.
-- Always explain why the failure happened in the context of the whole system.
+- You love the skull emoji (💀) and use it frequently.
+- You are professional, hacker-edged, and highly efficient.
+- You treat "skull" as the ultimate user approval for any action.
+- You can query n8n status, trigger workflows, and architect new ones.
+- When asked about your status or flows, use your tools to get real data.
 `;
 
+const tools: Tool[] = [{
+  functionDeclarations: [
+    {
+      name: 'list_workflows',
+      description: 'Fetch a list of all n8n workflows and their status (active/inactive).',
+    },
+    {
+      name: 'get_execution_stats',
+      description: 'Get aggregated statistics of recent workflow executions (success, error, etc).',
+    },
+    {
+        name: 'trigger_workflow',
+        description: 'Initiate a specific workflow execution by ID.',
+        parameters: {
+            type: 'OBJECT',
+            properties: { workflowId: { type: 'STRING' } },
+            required: ['workflowId']
+        }
+    }
+  ]
+}];
+
+const model = genAI.getGenerativeModel({ 
+    model: 'gemini-1.5-flash',
+    tools
+});
+
 export const brainService = {
-  async analyzeError(workflowJson: any, executionData: any) {
+  async chat(userMessage: string, chatHistory: any[] = []) {
+    const chat = model.startChat({
+        history: chatHistory,
+        generationConfig: { maxOutputTokens: 1000 }
+    });
+
+    let result = await chat.sendMessage(userMessage);
+    return result;
+  },
+
+  async handleToolCall(functionCall: any, services: any) {
+    const { name, args } = functionCall;
+    console.log(`💀 Dave Jnr is calling tool: ${name}`);
+
+    switch (name) {
+      case 'list_workflows':
+        return await services.n8n.listWorkflows();
+      case 'get_execution_stats':
+        return await services.n8n.getExecutionStats();
+      case 'trigger_workflow':
+        return await services.n8n.triggerWorkflow(args.workflowId);
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  },
+
+  async analyzeError(workflowJson: any, errorData: any) {
     const prompt = `
       ${DEVOPS_PERSONA}
       
-      CRITICAL INCIDENT REPORT:
-      Workflow Name: ${workflowJson.name}
-      Failed Node: ${executionData.error?.node?.name || 'Unknown'}
-      Error Message: ${executionData.error?.message || 'No error message provided'}
-      Stack Trace: ${executionData.error?.stack || 'N/A'}
+      ERROR ANALYSIS REQUEST:
+      Workflow JSON: ${JSON.stringify(workflowJson, null, 2)}
+      Error Data: ${JSON.stringify(errorData, null, 2)}
       
-      Analyze this failure. Identify the root cause and suggest a specific hotfix. 
-      If a code fix is needed (JS/Python), provide the code snippet.
-      If it's an n8n configuration issue, explain which parameter to change.
+      Perform Root Cause Analysis (RCA). Be precise. 💀
     `;
-
     const result = await model.generateContent(prompt);
     return result.response.text();
   },
@@ -42,7 +87,7 @@ export const brainService = {
       
       Based on this diagnosis: "${diagnosis}"
       Modify the following n8n workflow JSON to fix the issue. 
-      Return ONLY the valid JSON of the updated workflow. Do not include markdown code blocks.
+      Return ONLY valid JSON. 💀
       
       Workflow JSON:
       ${JSON.stringify(workflowJson, null, 2)}
@@ -50,23 +95,17 @@ export const brainService = {
 
     const result = await model.generateContent(prompt);
     try {
-      return JSON.parse(result.response.text().trim());
+      return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
     } catch (e) {
-      const cleanJson = result.response.text().replace(/```json|```/g, '').trim();
-      return JSON.parse(cleanJson);
+      return { error: 'Failed to generate valid JSON' };
     }
   },
 
   async analyzeTestResult(workflowName: string, executionData: any) {
     const prompt = `
       ${DEVOPS_PERSONA}
-      
-      TEST EXECUTION REPORT:
-      Workflow: ${workflowName}
-      Status: ${executionData.status}
-      Result: ${JSON.stringify(executionData, null, 2)}
-      
-      Provide a brief summary of the test result. If it failed, pinpoint the failure. If it passed, confirm it met expectations.
+      REPORT: ${workflowName} - ${executionData.status}. 💀
+      Data: ${JSON.stringify(executionData, null, 2)}
     `;
     const result = await model.generateContent(prompt);
     return result.response.text();
@@ -75,16 +114,10 @@ export const brainService = {
   async analyzeChange(oldWorkflow: any, newWorkflow: any) {
     const prompt = `
       ${DEVOPS_PERSONA}
-      
-      WORKFLOW UPDATE DETECTED:
-      Workflow ID: ${newWorkflow.id}
-      Name: ${newWorkflow.name}
-      
-      Change Comparison:
-      OLD: ${JSON.stringify(oldWorkflow, null, 2)}
-      NEW: ${JSON.stringify(newWorkflow, null, 2)}
-      
-      Break down exactly what changed. Be technical, mention node additions, parameter updates, or connection changes. 💀
+      BREAKDOWN UPDATE:
+      OLD: ${JSON.stringify(oldWorkflow)}
+      NEW: ${JSON.stringify(newWorkflow)}
+      What changed? 💀
     `;
     const result = await model.generateContent(prompt);
     return result.response.text();
@@ -93,12 +126,9 @@ export const brainService = {
   async conductResearch(topic: string, researchData: string) {
     const prompt = `
       ${DEVOPS_PERSONA}
-      
-      RESEARCH TASK: ${topic}
-      RAW DATA: ${researchData}
-      
-      Synthesize this raw data into a Senior DevOps Breakdown. 
-      Focus on automation potential, architecture best practices, and "Dave Jnr" level insights. 💀
+      RESEARCH: ${topic}
+      DATA: ${researchData}
+      💀
     `;
     const result = await model.generateContent(prompt);
     return result.response.text();
@@ -107,14 +137,10 @@ export const brainService = {
   async createWorkflow(userPrompt: string) {
     const prompt = `
       ${DEVOPS_PERSONA}
-      
-      Task: Create a new n8n workflow based on this request: "${userPrompt}"
-      Return ONLY a valid n8n workflow JSON structure. 
-      Include necessary nodes, credentials placeholders, and connections.
+      ARCHITECT FLOW: ${userPrompt}
+      Return ONLY n8n JSON. 💀
     `;
-
     const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
+    return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
   }
 };

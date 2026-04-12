@@ -1,9 +1,21 @@
 import express from 'express';
 import { config } from './config.js';
 import { botService } from './bot.js';
+import { n8nService } from './n8n.js';
+import { getDashboardHtml } from './dashboard.js';
 
 const app = express();
 app.use(express.json());
+
+// Level 3: Monitoring Hub
+app.get('/dashboard', async (req, res) => {
+  try {
+    const stats = await n8nService.getExecutionStats();
+    res.send(getDashboardHtml(stats));
+  } catch (err: any) {
+    res.status(500).send(`💀 Dashboard Critical Error: ${err.message}`);
+  }
+});
 
 // n8n Error Webhook
 app.post('/n8n-error', async (req, res) => {

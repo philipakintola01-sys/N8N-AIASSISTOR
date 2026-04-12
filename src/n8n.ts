@@ -16,6 +16,11 @@ export interface WorkflowUpdateResponse {
 }
 
 export const n8nService = {
+  async listWorkflows() {
+    const response = await n8nClient.get('/workflows');
+    return response.data.data;
+  },
+
   async getWorkflow(id: string) {
     const response = await n8nClient.get(`/workflows/${id}`);
     return response.data;
@@ -61,5 +66,27 @@ export const n8nService = {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
     throw new Error('Timeout waiting for execution completion');
+  },
+
+  async getExecutionStats(limit = 100) {
+    const response = await n8nClient.get(`/executions?limit=${limit}`);
+    const executions = response.data.data;
+    
+    const stats = {
+        total: executions.length,
+        success: executions.filter((e: any) => e.status === 'success' || e.finished).length,
+        error: executions.filter((e: any) => e.status === 'error' || e.status === 'crashed').length,
+        waiting: executions.filter((e: any) => e.status === 'waiting' || e.status === 'running').length,
+        recentErrors: executions
+            .filter((e: any) => e.status === 'error' || e.status === 'crashed')
+            .slice(0, 5)
+            .map((e: any) => ({
+                id: e.id,
+                workflowId: e.workflowId,
+                stoppedAt: e.stoppedAt
+            }))
+    };
+    
+    return stats;
   }
 };
