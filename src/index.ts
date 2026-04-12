@@ -1,5 +1,6 @@
 import { bot, botService } from './bot.js';
 import { startServer } from './server.js';
+import { config } from './config.js';
 
 async function preFlightCheck() {
   const required = ['GEMINI_API_KEY', 'TELEGRAM_BOT_TOKEN', 'N8N_API_KEY', 'N8N_URL'];

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Tool } from '@google/generative-ai';
+import { GoogleGenerativeAI, type Tool, SchemaType } from '@google/generative-ai';
 import { config } from './config.js';
 
 const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
@@ -27,8 +27,8 @@ const tools: Tool[] = [{
         name: 'trigger_workflow',
         description: 'Initiate a specific workflow execution by ID.',
         parameters: {
-            type: 'OBJECT',
-            properties: { workflowId: { type: 'STRING' } },
+            type: SchemaType.OBJECT,
+            properties: { workflowId: { type: SchemaType.STRING } },
             required: ['workflowId']
         }
     }
