@@ -9,6 +9,12 @@ const n8nClient = axios.create({
   },
 });
 
+export interface WorkflowUpdateResponse {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 export const n8nService = {
   async getWorkflow(id: string) {
     const response = await n8nClient.get(`/workflows/${id}`);
@@ -17,6 +23,16 @@ export const n8nService = {
 
   async updateWorkflow(id: string, workflowData: any) {
     const response = await n8nClient.put(`/workflows/${id}`, workflowData);
+    return response.data;
+  },
+
+  async deactivateWorkflow(id: string): Promise<WorkflowUpdateResponse> {
+    const response = await n8nClient.post(`/workflows/${id}/deactivate`);
+    return response.data;
+  },
+
+  async activateWorkflow(id: string): Promise<WorkflowUpdateResponse> {
+    const response = await n8nClient.post(`/workflows/${id}/activate`);
     return response.data;
   },
 

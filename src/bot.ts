@@ -51,7 +51,50 @@ bot.command('test', async (ctx) => {
   }
 });
 
-// Store pending fixes in memory (for simplicity in this v1)
+bot.command('activate', async (ctx) => {
+  const workflowId = ctx.payload;
+  if (!workflowId) return ctx.reply('Usage: /activate [id]');
+  try {
+    const result = await n8nService.activateWorkflow(workflowId);
+    ctx.reply(`✅ *Workflow Activated:* ${result.name} 💀`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    ctx.reply(`❌ *Activation Failed:* ${err.message}`);
+  }
+});
+
+bot.command('deactivate', async (ctx) => {
+  const workflowId = ctx.payload;
+  if (!workflowId) return ctx.reply('Usage: /deactivate [id]');
+  try {
+    const result = await n8nService.deactivateWorkflow(workflowId);
+    ctx.reply(`🛑 *Workflow Deactivated:* ${result.name} 💀`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    ctx.reply(`❌ *Deactivation Failed:* ${err.message}`);
+  }
+});
+
+bot.command('research', async (ctx) => {
+  const topic = ctx.payload;
+  if (!topic) return ctx.reply('Usage: /research [topic]');
+  ctx.reply(`🔍 *Dave Jnr is initiating research on:* ${topic}...\nPulling automation intelligence... 💀`);
+  try {
+    const breakdown = await brainService.conductResearch(topic, "Latest research parameters identified in DevOps automation stream...");
+    ctx.reply(`📊 *Research Breakdown:* ${topic}\n\n${breakdown}`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    ctx.reply(`❌ *Research Failed:* ${err.message}`);
+  }
+});
+
+// Capture Sticker ID for future use
+let activeStickerId: string | null = null;
+
+bot.on('sticker', async (ctx) => {
+  const fileId = ctx.message.sticker.file_id;
+  activeStickerId = fileId;
+  ctx.reply(`💀 *Sticker Identified.* Root access granted to visual asset. I will use this for my future high-priority alerts.`);
+});
+
+// Store pending fixes in memory
 const pendingFixes = new Map<string, any>();
 
 export const botService = {
@@ -64,9 +107,11 @@ export const botService = {
     message += `*Error:* ${error?.message || 'Generic Failure'}\n`;
     message += `\n[View Execution](${config.n8n.baseUrl}/execution/${execution.id})`;
 
+    if (activeStickerId) {
+        await bot.telegram.sendSticker(config.telegram.userId, activeStickerId);
+    }
     await bot.telegram.sendMessage(config.telegram.userId, message, { parse_mode: 'Markdown' });
 
-    // Start Diagnosis
     const statusMsg = await bot.telegram.sendMessage(config.telegram.userId, '⚙️ *Running Root Cause Analysis (RCA)...*', { parse_mode: 'Markdown' });
 
     try {
@@ -76,7 +121,6 @@ export const botService = {
       await bot.telegram.editMessageText(config.telegram.userId, statusMsg.message_id, undefined, 
         `🧠 *RCA Summary:*\n\n${diagnosis}`, { parse_mode: 'Markdown' });
 
-      // Suggest Hotfix
       const fixJson = await brainService.suggestFixJson(fullWorkflow, diagnosis);
       const fixId = Math.random().toString(36).substring(7);
       pendingFixes.set(fixId, { workflowId: workflow.id, json: fixJson });
@@ -93,6 +137,9 @@ export const botService = {
   },
 
   async sendStartupMessage() {
+    if (activeStickerId) {
+        await bot.telegram.sendSticker(config.telegram.userId, activeStickerId);
+    }
     await bot.telegram.sendMessage(config.telegram.userId, '💀 *Dave Jnr is Back Online.* All systems nominal. I am watching the flows...');
   }
 };
@@ -102,7 +149,6 @@ bot.action(/fix_approve_(.+)/, async (ctx) => {
   if (!fixId) return ctx.reply('Error: Invalid fix ID.');
   
   const fix = pendingFixes.get(fixId);
-  
   if (!fix) return ctx.reply('Error: Fix session expired.');
 
   try {
@@ -115,11 +161,9 @@ bot.action(/fix_approve_(.+)/, async (ctx) => {
 });
 
 bot.action(/fix_refine_(.+)/, async (ctx) => {
-  const fixId = ctx.match?.[1];
   await ctx.reply('Understood. Please describe the changes you want, or provide the corrected logic.');
 });
 
-// Catch-all for creating new workflows
 bot.on('text', async (ctx) => {
     if (ctx.message.text.toLowerCase().startsWith('create')) {
         const prompt = ctx.message.text.substring(6).trim();
@@ -128,9 +172,7 @@ bot.on('text', async (ctx) => {
         try {
             const newWorkflow = await brainService.createWorkflow(prompt);
             await ctx.telegram.editMessageText(ctx.chat?.id!, statusMsg.message_id, undefined, '✅ *Workflow Architected.* Uploading draft to n8n...');
-            
             const deployed = await n8nService.createWorkflow(newWorkflow);
-            
             await ctx.telegram.editMessageText(ctx.chat?.id!, statusMsg.message_id, undefined, 
                 `🚀 *Workflow Deployed:* ${deployed.name}\nID: \`${deployed.id}\`\n[Open in Editor](${config.n8n.baseUrl}/workflow/${deployed.id})`, 
                 { parse_mode: 'Markdown' });

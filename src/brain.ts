@@ -72,6 +72,38 @@ export const brainService = {
     return result.response.text();
   },
 
+  async analyzeChange(oldWorkflow: any, newWorkflow: any) {
+    const prompt = `
+      ${DEVOPS_PERSONA}
+      
+      WORKFLOW UPDATE DETECTED:
+      Workflow ID: ${newWorkflow.id}
+      Name: ${newWorkflow.name}
+      
+      Change Comparison:
+      OLD: ${JSON.stringify(oldWorkflow, null, 2)}
+      NEW: ${JSON.stringify(newWorkflow, null, 2)}
+      
+      Break down exactly what changed. Be technical, mention node additions, parameter updates, or connection changes. 💀
+    `;
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  },
+
+  async conductResearch(topic: string, researchData: string) {
+    const prompt = `
+      ${DEVOPS_PERSONA}
+      
+      RESEARCH TASK: ${topic}
+      RAW DATA: ${researchData}
+      
+      Synthesize this raw data into a Senior DevOps Breakdown. 
+      Focus on automation potential, architecture best practices, and "Dave Jnr" level insights. 💀
+    `;
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  },
+
   async createWorkflow(userPrompt: string) {
     const prompt = `
       ${DEVOPS_PERSONA}
