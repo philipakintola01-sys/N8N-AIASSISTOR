@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { config } from './config';
+import { config } from './config.js';
 
 const n8nClient = axios.create({
   baseURL: `${config.n8n.baseUrl}/api/v1`,

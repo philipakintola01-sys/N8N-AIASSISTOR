@@ -1,5 +1,5 @@
-import { bot } from './bot';
-import { startServer } from './server';
+import { bot } from './bot.js';
+import { startServer } from './server.js';
 
 async function main() {
   console.log('--- n8n Automation Sentinel Level 1 ---');

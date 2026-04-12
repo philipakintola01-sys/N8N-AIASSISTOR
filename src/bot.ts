@@ -1,7 +1,7 @@
 import { Telegraf, Markup } from 'telegraf';
-import { config } from './config';
-import { n8nService } from './n8n';
-import { brainService } from './brain';
+import { config } from './config.js';
+import { n8nService } from './n8n.js';
+import { brainService } from './brain.js';
 
 export const bot = new Telegraf(config.telegram.token);
 
@@ -88,7 +88,7 @@ bot.on('text', async (ctx) => {
         
         try {
             const newWorkflow = await brainService.createWorkflow(prompt);
-            await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, '✅ *Workflow Architected.* Uploading draft...');
+            await ctx.telegram.editMessageText(ctx.chat?.id!, statusMsg.message_id, undefined, '✅ *Workflow Architected.* Uploading draft...');
             // In a real scenario, we might create a new workflow in n8n or send back the file.
             // For now, let's just send the JSON as a code block.
             await ctx.reply(`\`\`\`json\n${JSON.stringify(newWorkflow, null, 2)}\n\`\`\``, { parse_mode: 'MarkdownV2' });
