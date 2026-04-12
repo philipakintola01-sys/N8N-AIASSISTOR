@@ -28,5 +28,22 @@ export const n8nService = {
   async triggerWorkflow(id: string) {
     const response = await n8nClient.post(`/workflows/${id}/execute`);
     return response.data;
+  },
+
+  async createWorkflow(workflowData: any) {
+    const response = await n8nClient.post('/workflows', workflowData);
+    return response.data;
+  },
+
+  async waitForExecution(executionId: string, timeout = 30000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const response = await this.getExecution(executionId);
+      if (response.status === 'success' || response.status === 'error' || response.status === 'crashed') {
+        return response;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    throw new Error('Timeout waiting for execution completion');
   }
 };

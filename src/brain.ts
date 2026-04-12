@@ -50,10 +50,24 @@ export const brainService = {
     try {
       return JSON.parse(result.response.text().trim());
     } catch (e) {
-      // Fallback if it returns markdown or invalid JSON
       const cleanJson = result.response.text().replace(/```json|```/g, '').trim();
       return JSON.parse(cleanJson);
     }
+  },
+
+  async analyzeTestResult(workflowName: string, executionData: any) {
+    const prompt = `
+      ${DEVOPS_PERSONA}
+      
+      TEST EXECUTION REPORT:
+      Workflow: ${workflowName}
+      Status: ${executionData.status}
+      Result: ${JSON.stringify(executionData, null, 2)}
+      
+      Provide a brief summary of the test result. If it failed, pinpoint the failure. If it passed, confirm it met expectations.
+    `;
+    const result = await model.generateContent(prompt);
+    return result.response.text();
   },
 
   async createWorkflow(userPrompt: string) {

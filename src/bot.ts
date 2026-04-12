@@ -19,6 +19,38 @@ bot.command('status', async (ctx) => {
   ctx.reply('Systems Operational. Connectivity to n8n confirmed.');
 });
 
+bot.command('run', async (ctx) => {
+  const workflowId = ctx.payload;
+  if (!workflowId) return ctx.reply('Usage: /run [workflow_id]');
+  
+  try {
+    const result = await n8nService.triggerWorkflow(workflowId);
+    ctx.reply(`🚀 *Workflow Triggered:* Execution ID ${result.executionId}\n[View Execution](${config.n8n.baseUrl}/execution/${result.executionId})`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    ctx.reply(`❌ *Trigger Failed:* ${err.message}`);
+  }
+});
+
+bot.command('test', async (ctx) => {
+  const workflowId = ctx.payload;
+  if (!workflowId) return ctx.reply('Usage: /test [workflow_id]');
+  
+  const statusMsg = await ctx.reply('🧪 *Testing Workflow:* Initiating execution and monitoring results...');
+  
+  try {
+    const trigger = await n8nService.triggerWorkflow(workflowId);
+    const execution = await n8nService.waitForExecution(trigger.executionId);
+    const workflow = await n8nService.getWorkflow(workflowId);
+    
+    const analysis = await brainService.analyzeTestResult(workflow.name, execution);
+    
+    await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, 
+      `🏁 *Test Result:* ${execution.status.toUpperCase()}\n\n${analysis}`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    await ctx.reply(`❌ *Test Failed:* ${err.message}`);
+  }
+});
+
 // Store pending fixes in memory (for simplicity in this v1)
 const pendingFixes = new Map<string, any>();
 
@@ -91,10 +123,13 @@ bot.on('text', async (ctx) => {
         
         try {
             const newWorkflow = await brainService.createWorkflow(prompt);
-            await ctx.telegram.editMessageText(ctx.chat?.id!, statusMsg.message_id, undefined, '✅ *Workflow Architected.* Uploading draft...');
-            // In a real scenario, we might create a new workflow in n8n or send back the file.
-            // For now, let's just send the JSON as a code block.
-            await ctx.reply(`\`\`\`json\n${JSON.stringify(newWorkflow, null, 2)}\n\`\`\``, { parse_mode: 'MarkdownV2' });
+            await ctx.telegram.editMessageText(ctx.chat?.id!, statusMsg.message_id, undefined, '✅ *Workflow Architected.* Uploading draft to n8n...');
+            
+            const deployed = await n8nService.createWorkflow(newWorkflow);
+            
+            await ctx.telegram.editMessageText(ctx.chat?.id!, statusMsg.message_id, undefined, 
+                `🚀 *Workflow Deployed:* ${deployed.name}\nID: \`${deployed.id}\`\n[Open in Editor](${config.n8n.baseUrl}/workflow/${deployed.id})`, 
+                { parse_mode: 'Markdown' });
         } catch (err: any) {
             await ctx.reply(`❌ *Architecting Failed:* ${err.message}`);
         }
