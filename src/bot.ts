@@ -62,7 +62,9 @@ export const botService = {
 };
 
 bot.action(/fix_approve_(.+)/, async (ctx) => {
-  const fixId = ctx.match[1];
+  const fixId = ctx.match?.[1];
+  if (!fixId) return ctx.reply('Error: Invalid fix ID.');
+  
   const fix = pendingFixes.get(fixId);
   
   if (!fix) return ctx.reply('Error: Fix session expired.');
@@ -70,13 +72,14 @@ bot.action(/fix_approve_(.+)/, async (ctx) => {
   try {
     await n8nService.updateWorkflow(fix.workflowId, fix.json);
     await ctx.editMessageText('🚀 *Hotfix Deployed Successfully.* Workflow has been updated and re-activated.');
-    pendingFixes.delete(fixId);
+    if (fixId) pendingFixes.delete(fixId);
   } catch (err: any) {
     await ctx.reply(`❌ *Deployment Failed:* ${err.message}`);
   }
 });
 
 bot.action(/fix_refine_(.+)/, async (ctx) => {
+  const fixId = ctx.match?.[1];
   await ctx.reply('Understood. Please describe the changes you want, or provide the corrected logic.');
 });
 
