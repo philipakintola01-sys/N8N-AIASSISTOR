@@ -1,0 +1,32 @@
+import axios from 'axios';
+import { config } from './config';
+
+const n8nClient = axios.create({
+  baseURL: `${config.n8n.baseUrl}/api/v1`,
+  headers: {
+    'X-N8N-API-KEY': config.n8n.apiKey,
+    'Content-Type': 'application/json',
+  },
+});
+
+export const n8nService = {
+  async getWorkflow(id: string) {
+    const response = await n8nClient.get(`/workflows/${id}`);
+    return response.data;
+  },
+
+  async updateWorkflow(id: string, workflowData: any) {
+    const response = await n8nClient.put(`/workflows/${id}`, workflowData);
+    return response.data;
+  },
+
+  async getExecution(id: string) {
+    const response = await n8nClient.get(`/executions/${id}`);
+    return response.data;
+  },
+
+  async triggerWorkflow(id: string) {
+    const response = await n8nClient.post(`/workflows/${id}/execute`);
+    return response.data;
+  }
+};
