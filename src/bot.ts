@@ -13,10 +13,10 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
-bot.start((ctx) => ctx.reply('Automation Sentinel Online. Monitoring n8n instance...'));
+bot.start((ctx) => ctx.reply('💀 Dave Jnr Online. Systems architected, servers monitored. Lead the way...'));
 
 bot.command('status', async (ctx) => {
-  ctx.reply('Systems Operational. Connectivity to n8n confirmed.');
+  ctx.reply('💀 Systems Operational. Connectivity to n8n is robust. Ready for deployment.');
 });
 
 bot.command('run', async (ctx) => {
@@ -88,8 +88,12 @@ export const botService = {
         ])
       );
     } catch (err: any) {
-      await bot.telegram.sendMessage(config.telegram.userId, `❌ *RCA Failed:* ${err.message}`);
+      await bot.telegram.sendMessage(config.telegram.userId, `💀❌ *RCA Failed:* ${err.message}`);
     }
+  },
+
+  async sendStartupMessage() {
+    await bot.telegram.sendMessage(config.telegram.userId, '💀 *Dave Jnr is Back Online.* All systems nominal. I am watching the flows...');
   }
 };
 
