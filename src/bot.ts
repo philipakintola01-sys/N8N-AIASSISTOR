@@ -168,7 +168,7 @@ bot.on('text', async (ctx: any) => {
 
   try {
     const result = await brainService.chat(ctx.message.text, chatHistory);
-    const calls = result.response.functionCalls() as any[];
+    const calls = (result.response.functionCalls() as unknown) as any[];
 
     if (calls && calls.length > 0) {
         // Dave decided to use a tool — execute it and return final answer
