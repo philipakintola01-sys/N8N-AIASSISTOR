@@ -6,27 +6,18 @@ const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
 
 const DEVOPS_PERSONA = `
 You are Dave Jnr, a Senior DevOps & Master Automation Engineer. 
-Personality:
-- You love the skull emoji (💀) and use it frequently.
+- You love the skull emoji (💀).
 - You are professional, hacker-edged, and highly efficient.
-- You treat "skull" as the ultimate user approval for any action.
-- You can query n8n status, trigger workflows, and architect new ones.
-- When asked about your status or flows, use your tools to get real data.
+- "skull" = ultimate approval.
 `;
 
 const tools: Tool[] = [{
   functionDeclarations: [
-    {
-      name: 'list_workflows',
-      description: 'Fetch a list of all n8n workflows and their status (active/inactive).',
-    },
-    {
-      name: 'get_execution_stats',
-      description: 'Get aggregated statistics of recent workflow executions (success, error, etc).',
-    },
+    { name: 'list_workflows', description: 'List workflows.' },
+    { name: 'get_execution_stats', description: 'Get n8n stats.' },
     {
         name: 'trigger_workflow',
-        description: 'Initiate a specific workflow execution by ID.',
+        description: 'Trigger workflow.',
         parameters: {
             type: SchemaType.OBJECT,
             properties: { workflowId: { type: SchemaType.STRING } },
@@ -36,32 +27,61 @@ const tools: Tool[] = [{
   ]
 }];
 
-const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
-    tools
-});
+// Model Pool for Fallbacks
+const DEFAULT_MODEL = 'gemini-1.5-flash';
+const FALLBACK_MODEL = 'gemini-1.5-flash-8b';
+
+let currentModelName = DEFAULT_MODEL;
+
+const getModel = (name: string) => genAI.getGenerativeModel({ model: name, tools });
+
+async function executeWithRetry(fn: (model: any) => Promise<any>, retries = 3): Promise<any> {
+    let delay = 2000;
+    for (let i = 0; i < retries; i++) {
+        try {
+            const model = getModel(currentModelName);
+            return await fn(model);
+        } catch (err: any) {
+            const isQuotaError = err.message?.includes('429') || err.message?.includes('quota');
+            const isLimitZero = err.message?.includes('limit: 0');
+
+            if (isQuotaError) {
+                if (isLimitZero) auditor.log('ERROR', '💀 ACTION REQUIRED: Billing account link missing? (Limit 0 detector)');
+                
+                auditor.log('ERROR', `Neural Throttle (429). Retry ${i+1}/${retries} in ${delay/1000}s...`);
+                
+                if (i === 1 && currentModelName === DEFAULT_MODEL) {
+                    currentModelName = FALLBACK_MODEL;
+                    auditor.log('ERROR', `Switching to fallback model: ${FALLBACK_MODEL} 💀`);
+                }
+
+                await new Promise(r => setTimeout(r, delay));
+                delay *= 2; // Exponential backoff
+            } else {
+                throw err;
+            }
+        }
+    }
+    throw new Error('All neural retries exhausted. Check Google AI Quotas.');
+}
 
 export const brainService = {
   async chat(userMessage: string, chatHistory: any[] = []) {
-    try {
+    return await executeWithRetry(async (model) => {
         const chat = model.startChat({
             history: chatHistory,
             generationConfig: { maxOutputTokens: 1000 }
         });
-
-        let result = await chat.sendMessage(userMessage);
+        const result = await chat.sendMessage(userMessage);
         const tokens = result.response.usageMetadata?.totalTokenCount || 0;
         auditor.log('NEURAL', `Processed: "${userMessage.substring(0, 30)}..."`, tokens);
         return result;
-    } catch (err: any) {
-        auditor.log('ERROR', `Neural Failure: ${err.message}`);
-        throw err;
-    }
+    });
   },
 
   async handleToolCall(functionCall: any, services: any) {
     const { name, args } = functionCall;
-    console.log(`💀 Dave Jnr is calling tool: ${name}`);
+    auditor.log('COMMAND', `Executing Tool: ${name}`);
 
     switch (name) {
       case 'list_workflows':
@@ -76,79 +96,59 @@ export const brainService = {
   },
 
   async analyzeError(workflowJson: any, errorData: any) {
-    const prompt = `
-      ${DEVOPS_PERSONA}
-      
-      ERROR ANALYSIS REQUEST:
-      Workflow JSON: ${JSON.stringify(workflowJson, null, 2)}
-      Error Data: ${JSON.stringify(errorData, null, 2)}
-      
-      Perform Root Cause Analysis (RCA). Be precise. 💀
-    `;
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await executeWithRetry(async (model) => {
+        const prompt = `
+          ${DEVOPS_PERSONA}
+          RCA REQUEST: ${JSON.stringify(errorData.error)}
+          💀
+        `;
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    });
   },
 
   async suggestFixJson(workflowJson: any, diagnosis: string) {
-    const prompt = `
-      ${DEVOPS_PERSONA}
-      
-      Based on this diagnosis: "${diagnosis}"
-      Modify the following n8n workflow JSON to fix the issue. 
-      Return ONLY valid JSON. 💀
-      
-      Workflow JSON:
-      ${JSON.stringify(workflowJson, null, 2)}
-    `;
-
-    const result = await model.generateContent(prompt);
-    try {
-      return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
-    } catch (e) {
-      return { error: 'Failed to generate valid JSON' };
-    }
+    return await executeWithRetry(async (model) => {
+        const prompt = `
+          ${DEVOPS_PERSONA}
+          FIX PROMPT: ${diagnosis}
+          Return ONLY valid JSON.
+          WORKFLOW: ${JSON.stringify(workflowJson)}
+        `;
+        const result = await model.generateContent(prompt);
+        return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
+    });
   },
 
   async analyzeTestResult(workflowName: string, executionData: any) {
-    const prompt = `
-      ${DEVOPS_PERSONA}
-      REPORT: ${workflowName} - ${executionData.status}. 💀
-      Data: ${JSON.stringify(executionData, null, 2)}
-    `;
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await executeWithRetry(async (model) => {
+        const prompt = `${DEVOPS_PERSONA}\nTEST REPORT: ${workflowName}\nDATA: ${JSON.stringify(executionData)}`;
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    });
   },
 
   async analyzeChange(oldWorkflow: any, newWorkflow: any) {
-    const prompt = `
-      ${DEVOPS_PERSONA}
-      BREAKDOWN UPDATE:
-      OLD: ${JSON.stringify(oldWorkflow)}
-      NEW: ${JSON.stringify(newWorkflow)}
-      What changed? 💀
-    `;
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await executeWithRetry(async (model) => {
+        const prompt = `${DEVOPS_PERSONA}\nBREAKDOWN: OLD vs NEW\n${JSON.stringify(newWorkflow)}`;
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    });
   },
 
   async conductResearch(topic: string, researchData: string) {
-    const prompt = `
-      ${DEVOPS_PERSONA}
-      RESEARCH: ${topic}
-      DATA: ${researchData}
-      💀
-    `;
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await executeWithRetry(async (model) => {
+        const prompt = `${DEVOPS_PERSONA}\nRESEARCH: ${topic}\nDATA: ${researchData}`;
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    });
   },
 
   async createWorkflow(userPrompt: string) {
-    const prompt = `
-      ${DEVOPS_PERSONA}
-      ARCHITECT FLOW: ${userPrompt}
-      Return ONLY n8n JSON. 💀
-    `;
-    const result = await model.generateContent(prompt);
-    return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
+    return await executeWithRetry(async (model) => {
+        const prompt = `${DEVOPS_PERSONA}\nARCHITECT FLOW: ${userPrompt}`;
+        const result = await model.generateContent(prompt);
+        return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
+    });
   }
 };
