@@ -168,26 +168,31 @@ bot.on('text', async (ctx: any) => {
 
   try {
     const result = await brainService.chat(ctx.message.text, chatHistory);
-    const call = result.response.functionCalls()?.[0];
+    const calls = result.response.functionCalls();
 
-        if (call) {
+    if (calls && calls.length > 0) {
+        // Dave decided to use a tool — execute it and return final answer
+        for (const call of calls) {
             const apiResult = await brainService.handleToolCall(call, { n8n: n8nService });
-            const finalResponse = await brainService.chat(JSON.stringify(apiResult), [
-                { role: 'user', parts: [{ text: ctx.message.text }] }
-            ]);
-            ctx.reply(finalResponse.response.text(), { parse_mode: 'Markdown' });
-        } else {
+            // Inject tool result back into conversation and get a natural-language answer
+            const followUp = await brainService.chat(
+                `Tool Result for "${call.name}":\n${JSON.stringify(apiResult, null, 2)}\n\nNow give me a clear, concise summary as Dave Jnr.`,
+                chatHistory
+            );
+            ctx.reply(followUp.response.text(), { parse_mode: 'Markdown' });
+        }
+    } else {
         const text = result.response.text();
-        if (text.includes('{') && text.includes('nodes')) {
+        if (text && text.includes('"nodes"')) {
             try {
                 const json = JSON.parse(text.replace(/```json|```/g, '').trim());
                 const actionId = Math.random().toString(36).substring(7);
                 pendingActions.set(actionId, { type: 'create', json });
                 ctx.reply(`${text}\n\n💀 *Architecture ready. Say "skull" to deploy.*`);
-            } catch (e) {
-                ctx.reply(text);
+            } catch (_) {
+                ctx.reply(text, { parse_mode: 'Markdown' });
             }
-        } else {
+        } else if (text) {
             ctx.reply(text, { parse_mode: 'Markdown' });
         }
     }

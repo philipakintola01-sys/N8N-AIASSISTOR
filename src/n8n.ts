@@ -17,7 +17,8 @@ export interface WorkflowUpdateResponse {
 
 export const n8nService = {
   async listWorkflows() {
-    const response = await n8nClient.get('/workflows');
+    // Returns ALL workflows with their active status 
+    const response = await n8nClient.get('/workflows?limit=250');
     return response.data.data;
   },
 
@@ -46,9 +47,12 @@ export const n8nService = {
     return response.data;
   },
 
-  async triggerWorkflow(id: string) {
-    const response = await n8nClient.post(`/workflows/${id}/execute`);
-    return response.data;
+  // NOTE: n8n Public API v1 does NOT support triggering workflows by ID.
+  // Workflows must be triggered via their webhook URL.
+  // This method stores webhook URLs if provided.
+  async triggerWorkflow(webhookUrl: string) {
+    const response = await axios.post(webhookUrl, { source: 'dave-jnr', triggered_at: new Date().toISOString() });
+    return { status: 'triggered', response: response.data };
   },
 
   async createWorkflow(workflowData: any) {
