@@ -1,52 +1,80 @@
-interface AgentEvent {
-    timestamp: Date;
-    type: 'COMMAND' | 'NEURAL' | 'ERROR' | 'WEBHOOK';
-    details: string;
-    tokens?: number;
+interface ToolCallRecord {
+    tool_name: string;
+    duration_ms: number;
+    success: boolean;
+}
+
+interface Execution {
+    execution_id: string;
+    timestamp_start: string;
+    timestamp_end: string;
+    total_duration_ms: number;
+    trigger_type: 'manual' | 'webhook' | 'scheduled';
+    status: 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'TIMED_OUT';
+    tokens: {
+        prompt: number;
+        completion: number;
+        total: number;
+        estimated_cost_usd: number;
+    };
+    latency_breakdown: {
+        llm_ms: number;
+        tool_calls_ms: number;
+        overhead_ms: number;
+    };
+    tool_calls: ToolCallRecord[];
+    errors: any[];
+    error_count: number;
 }
 
 class AuditorService {
-    private events: AgentEvent[] = [];
-    private maxEvents = 100;
-    private totalTokens = 0;
-    private neuralSuccessCount = 0;
-    private neuralFailCount = 0;
+    private executions: Execution[] = [];
+    private shareLinks = new Map<string, { data: Execution[], expiry: number }>();
 
-    log(type: AgentEvent['type'], details: string, tokens?: number) {
-        const event: AgentEvent = {
-            timestamp: new Date(),
-            type,
-            details,
-        };
-        if (tokens !== undefined) {
-            event.tokens = tokens;
+    logExecution(exec: Execution) {
+        this.executions.unshift(exec);
+        if (this.executions.length > 5) {
+            this.executions.pop();
         }
-        
-        this.events.unshift(event);
-        if (this.events.length > this.maxEvents) {
-            this.events.pop();
-        }
+        console.log(`[EXECUTIVE AUDITOR] Finalized ${exec.execution_id} with status ${exec.status}`);
+    }
 
-        if (type === 'NEURAL') {
-            this.neuralSuccessCount++;
-            if (tokens) this.totalTokens += tokens;
-        } else if (type === 'ERROR') {
-            this.neuralFailCount++;
-        }
-        
-        console.log(`[AUDITOR] ${type}: ${details}`);
+    getExecutions() {
+        return this.executions;
+    }
+
+    generateShareLink(token: string) {
+        // Deep copy of current executions to freeze the state
+        const snapshot = JSON.parse(JSON.stringify(this.executions));
+        this.shareLinks.set(token, {
+            data: snapshot,
+            expiry: Date.now() + (300 * 1000) // 5 minutes
+        });
+
+        // Cleanup after 5 mins
+        setTimeout(() => {
+            this.shareLinks.delete(token);
+        }, 300 * 1000);
+    }
+
+    getSharedData(token: string) {
+        const entry = this.shareLinks.get(token);
+        if (!entry || entry.expiry < Date.now()) return null;
+        return entry.data;
     }
 
     getStats() {
+        // Compatibility wrapper for original dashboard needs if any
         return {
-            totalEvents: this.events.length,
-            totalTokens: this.totalTokens,
-            successRate: this.neuralSuccessCount + this.neuralFailCount > 0 
-                ? (this.neuralSuccessCount / (this.neuralSuccessCount + this.neuralFailCount) * 100).toFixed(1) 
+            recentExecutions: this.executions,
+            totalTokens: this.executions.reduce((acc, curr) => acc + curr.tokens.total, 0),
+            successRate: this.executions.length > 0
+                ? ((this.executions.filter(e => e.status === 'SUCCESS').length / this.executions.length) * 100).toFixed(1)
                 : '100',
-            recentEvents: this.events.slice(0, 50)
+            uptime: 0 // Will be handled by session duration in dashboard
         };
     }
 }
 
 export const auditor = new AuditorService();
+export type { Execution, ToolCallRecord };
