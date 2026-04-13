@@ -10,7 +10,7 @@ app.use(express.json());
 // Level 3: Monitoring Hub
 app.get('/dashboard', async (req, res) => {
   try {
-    const stats = await n8nService.getExecutionStats();
+    const stats = auditor.getStats();
     res.send(getDashboardHtml(stats));
   } catch (err: any) {
     res.status(500).send(`💀 Dashboard Critical Error: ${err.message}`);

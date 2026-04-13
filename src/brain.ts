@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, type Tool, SchemaType } from '@google/generative-ai';
 import { config } from './config.js';
+import { auditor } from './auditor.js';
 
 const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
 
@@ -42,13 +43,20 @@ const model = genAI.getGenerativeModel({
 
 export const brainService = {
   async chat(userMessage: string, chatHistory: any[] = []) {
-    const chat = model.startChat({
-        history: chatHistory,
-        generationConfig: { maxOutputTokens: 1000 }
-    });
+    try {
+        const chat = model.startChat({
+            history: chatHistory,
+            generationConfig: { maxOutputTokens: 1000 }
+        });
 
-    let result = await chat.sendMessage(userMessage);
-    return result;
+        let result = await chat.sendMessage(userMessage);
+        const tokens = result.response.usageMetadata?.totalTokenCount || 0;
+        auditor.log('NEURAL', `Processed: "${userMessage.substring(0, 30)}..."`, tokens);
+        return result;
+    } catch (err: any) {
+        auditor.log('ERROR', `Neural Failure: ${err.message}`);
+        throw err;
+    }
   },
 
   async handleToolCall(functionCall: any, services: any) {

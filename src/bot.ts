@@ -1,16 +1,18 @@
-import { Telegraf, Markup } from 'telegraf';
-import { config } from './config.js';
 import { n8nService } from './n8n.js';
 import { brainService } from './brain.js';
+import { auditor } from './auditor.js';
 
 export const bot = new Telegraf(config.telegram.token);
 
 const chatHistory: any[] = [];
 
-// Middleware to restrict access to the specific User ID
+// Middleware to restrict access and LOG internally
 bot.use(async (ctx, next) => {
   if (ctx.from?.id !== config.telegram.userId) {
     return ctx.reply('Unauthorized. This bot is property of the DevOps team.');
+  }
+  if (ctx.message && 'text' in ctx.message) {
+      auditor.log('COMMAND', `Received message: ${ctx.message.text}`);
   }
   return next();
 });
