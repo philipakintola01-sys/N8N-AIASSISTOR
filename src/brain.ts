@@ -1,82 +1,94 @@
-import { GoogleGenerativeAI, type Tool, SchemaType } from '@google/generative-ai';
+import axios from 'axios';
 import { config } from './config.js';
 import { auditor } from './auditor.js';
 
-const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 const DEVOPS_PERSONA = `
 You are Dave Jnr, a Senior DevOps & Master Automation Engineer. 
 - You love the skull emoji (💀).
-- You are professional, hacker-edged, and highly efficient.
 - "skull" = ultimate approval.
 `;
 
-const tools: Tool[] = [{
-  functionDeclarations: [
-    { name: 'list_workflows', description: 'List workflows.' },
-    { name: 'get_execution_stats', description: 'Get n8n stats.' },
+const tools = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_workflows',
+      description: 'Fetch a list of all n8n workflows and their status (active/inactive).',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_execution_stats',
+      description: 'Get aggregated statistics of recent workflow executions (success, error, etc).',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'trigger_workflow',
+      description: 'Initiate a specific workflow execution by ID.',
+      parameters: {
+        type: 'object',
+        properties: { workflowId: { type: 'string' } },
+        required: ['workflowId']
+      }
+    }
+  }
+];
+
+async function callOpenRouter(messages: any[], useTools = true) {
+  const response = await axios.post(
+    OPENROUTER_URL,
     {
-        name: 'trigger_workflow',
-        description: 'Trigger workflow.',
-        parameters: {
-            type: SchemaType.OBJECT,
-            properties: { workflowId: { type: SchemaType.STRING } },
-            required: ['workflowId']
-        }
+      model: config.openrouter.model,
+      messages,
+      tools: useTools ? tools : undefined,
+    },
+    {
+      headers: {
+        'Authorization': `Bearer ${config.openrouter.apiKey}`,
+        'HTTP-Referer': 'https://github.com/philipakintola01-sys/N8N-AIASSISTOR',
+        'X-Title': 'Dave Jnr Sentinel',
+        'Content-Type': 'application/json',
+      },
     }
-  ]
-}];
+  );
 
-// Model Pool for Fallbacks
-const DEFAULT_MODEL = 'gemini-1.5-flash';
-const FALLBACK_MODEL = 'gemini-1.5-flash-8b';
-
-let currentModelName = DEFAULT_MODEL;
-
-const getModel = (name: string) => genAI.getGenerativeModel({ model: name, tools });
-
-async function executeWithRetry(fn: (model: any) => Promise<any>, retries = 3): Promise<any> {
-    let delay = 2000;
-    for (let i = 0; i < retries; i++) {
-        try {
-            const model = getModel(currentModelName);
-            return await fn(model);
-        } catch (err: any) {
-            const isQuotaError = err.message?.includes('429') || err.message?.includes('quota');
-            const isLimitZero = err.message?.includes('limit: 0');
-
-            if (isQuotaError) {
-                if (isLimitZero) auditor.log('ERROR', '💀 ACTION REQUIRED: Billing account link missing? (Limit 0 detector)');
-                
-                auditor.log('ERROR', `Neural Throttle (429). Retry ${i+1}/${retries} in ${delay/1000}s...`);
-                
-                if (i === 1 && currentModelName === DEFAULT_MODEL) {
-                    currentModelName = FALLBACK_MODEL;
-                    auditor.log('ERROR', `Switching to fallback model: ${FALLBACK_MODEL} 💀`);
-                }
-
-                await new Promise(r => setTimeout(r, delay));
-                delay *= 2; // Exponential backoff
-            } else {
-                throw err;
-            }
-        }
-    }
-    throw new Error('All neural retries exhausted. Check Google AI Quotas.');
+  const usage = response.data.usage?.total_tokens || 0;
+  return { data: response.data, tokens: usage };
 }
 
 export const brainService = {
   async chat(userMessage: string, chatHistory: any[] = []) {
-    return await executeWithRetry(async (model) => {
-        const chat = model.startChat({
-            history: chatHistory,
-            generationConfig: { maxOutputTokens: 1000 }
-        });
-        const result = await chat.sendMessage(userMessage);
-        const tokens = result.response.usageMetadata?.totalTokenCount || 0;
+    let messages: any[] = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        ...chatHistory.map((h: any) => ({
+            role: h.role === 'model' ? 'assistant' : h.role,
+            content: typeof h.parts[0].text === 'string' ? h.parts[0].text : JSON.stringify(h.parts[0])
+        })),
+        { role: 'user', content: userMessage }
+    ];
+
+    try {
+        let { data, tokens } = await callOpenRouter(messages);
+        const choice = data.choices[0].message;
+
+        if (choice.tool_calls) {
+            auditor.log('NEURAL', 'Internal Tool Loop Triggered 💀', tokens);
+            return { response: { text: () => JSON.stringify(choice), functionCalls: () => choice.tool_calls.map((c: any) => ({ name: c.function.name, args: JSON.parse(c.function.arguments) })) } };
+        }
+
         auditor.log('NEURAL', `Processed: "${userMessage.substring(0, 30)}..."`, tokens);
-        return result;
-    });
+        return { response: { text: () => choice.content, functionCalls: () => null } };
+    } catch (err: any) {
+        auditor.log('ERROR', `Neural Failure: ${err.message}`);
+        throw err;
+    }
   },
 
   async handleToolCall(functionCall: any, services: any) {
@@ -96,59 +108,57 @@ export const brainService = {
   },
 
   async analyzeError(workflowJson: any, errorData: any) {
-    return await executeWithRetry(async (model) => {
-        const prompt = `
-          ${DEVOPS_PERSONA}
-          RCA REQUEST: ${JSON.stringify(errorData.error)}
-          💀
-        `;
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-    });
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Analyze this n8n error: ${JSON.stringify(errorData.error)} 💀` }
+    ];
+    const { data } = await callOpenRouter(messages, false);
+    return data.choices[0].message.content;
   },
 
   async suggestFixJson(workflowJson: any, diagnosis: string) {
-    return await executeWithRetry(async (model) => {
-        const prompt = `
-          ${DEVOPS_PERSONA}
-          FIX PROMPT: ${diagnosis}
-          Return ONLY valid JSON.
-          WORKFLOW: ${JSON.stringify(workflowJson)}
-        `;
-        const result = await model.generateContent(prompt);
-        return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
-    });
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Suggest a JSON fix for this diagnosis: ${diagnosis}. Return ONLY JSON. 💀\nWorkflow: ${JSON.stringify(workflowJson)}` }
+    ];
+    const { data } = await callOpenRouter(messages, false);
+    const text = data.choices[0].message.content;
+    return JSON.parse(text.replace(/```json|```/g, '').trim());
   },
 
   async analyzeTestResult(workflowName: string, executionData: any) {
-    return await executeWithRetry(async (model) => {
-        const prompt = `${DEVOPS_PERSONA}\nTEST REPORT: ${workflowName}\nDATA: ${JSON.stringify(executionData)}`;
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-    });
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Explain this test result for ${workflowName}: ${JSON.stringify(executionData)} 💀` }
+    ];
+    const { data } = await callOpenRouter(messages, false);
+    return data.choices[0].message.content;
   },
 
   async analyzeChange(oldWorkflow: any, newWorkflow: any) {
-    return await executeWithRetry(async (model) => {
-        const prompt = `${DEVOPS_PERSONA}\nBREAKDOWN: OLD vs NEW\n${JSON.stringify(newWorkflow)}`;
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-    });
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `List changes in this workflow update: ${JSON.stringify(newWorkflow)} 💀` }
+    ];
+    const { data } = await callOpenRouter(messages, false);
+    return data.choices[0].message.content;
   },
 
   async conductResearch(topic: string, researchData: string) {
-    return await executeWithRetry(async (model) => {
-        const prompt = `${DEVOPS_PERSONA}\nRESEARCH: ${topic}\nDATA: ${researchData}`;
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-    });
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Research synthesis for ${topic}: ${researchData} 💀` }
+    ];
+    const { data } = await callOpenRouter(messages, false);
+    return data.choices[0].message.content;
   },
 
   async createWorkflow(userPrompt: string) {
-    return await executeWithRetry(async (model) => {
-        const prompt = `${DEVOPS_PERSONA}\nARCHITECT FLOW: ${userPrompt}`;
-        const result = await model.generateContent(prompt);
-        return JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
-    });
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Create n8n JSON for: ${userPrompt}. Return ONLY JSON. 💀` }
+    ];
+    const { data } = await callOpenRouter(messages, false);
+    return JSON.parse(data.choices[0].message.content.replace(/```json|```/g, '').trim());
   }
 };
