@@ -42,12 +42,13 @@ const tools = [
   }
 ];
 
-// Confirmed working free-tier model pool on OpenRouter
+// Live confirmed free models on OpenRouter (verified 2026-04-13)
 const MODELS = [
-    config.openrouter.model,                        // Primary: deepseek-chat:free
-    'meta-llama/llama-3.3-70b-instruct:free',       // Fallback 1
-    'google/gemma-3-27b-it:free',                   // Fallback 2
-    'mistralai/mistral-7b-instruct:free',           // Fallback 3
+    'nvidia/nemotron-3-super-120b-a12b:free',   // Primary  — large, strong tool calling 
+    'meta-llama/llama-3.3-70b-instruct:free',   // Fallback 1 — reliable Llama 3.3
+    'qwen/qwen3-coder:free',                    // Fallback 2 — strong reasoning
+    'google/gemma-3-27b-it:free',               // Fallback 3 — fast Google
+    'openai/gpt-oss-120b:free',                 // Fallback 4 — GPT-compatible
 ];
 
 async function callOpenRouterWithResilience(messages: any[], useTools = true) {
