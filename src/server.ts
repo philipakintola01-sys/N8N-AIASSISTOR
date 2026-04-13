@@ -3,12 +3,13 @@ import { config } from './config.js';
 import { botService } from './bot.js';
 import { n8nService } from './n8n.js';
 import { getDashboardHtml } from './dashboard.js';
+import { auditor } from './auditor.js';
 
 const app = express();
 app.use(express.json());
 
 // Level 3: Monitoring Hub
-app.get('/dashboard', async (req, res) => {
+app.get('/dashboard', async (req: any, res: any) => {
   try {
     const stats = auditor.getStats();
     res.send(getDashboardHtml(stats));
@@ -18,12 +19,9 @@ app.get('/dashboard', async (req, res) => {
 });
 
 // n8n Error Webhook
-app.post('/n8n-error', async (req, res) => {
+app.post('/n8n-error', async (req: any, res: any) => {
   console.log('Received error signal from n8n');
   const errorData = req.body;
-  
-  // We expect a payload from n8n's Error Trigger
-  // { workflow: {...}, execution: {...}, error: {...} }
   
   if (!errorData.workflow || !errorData.execution) {
     return res.status(400).send('Missing workflow or execution context');
@@ -35,15 +33,13 @@ app.post('/n8n-error', async (req, res) => {
   res.status(200).send('Signal Received. Intelligence processing started.');
 });
 
-// Health/Keep-alive endpoint for Render/Cron-job.org
-app.get('/keep-alive', (req, res) => {
-  res.status(200).send('Sentinel is awake.');
+// Health/Keep-alive
+app.get('/keep-alive', (req: any, res: any) => {
+  res.status(200).send('Dave Jnr Online 💀');
 });
 
 export const startServer = () => {
   app.listen(config.server.port, () => {
-    console.log(`Sentinel Server online on port ${config.server.port}`);
-    console.log(`Webhook endpoint: /n8n-error`);
-    console.log(`Health endpoint: /keep-alive`);
+    console.log(`💀 Dave Jnr Server online on port ${config.server.port}`);
   });
 };

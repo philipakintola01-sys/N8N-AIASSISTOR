@@ -36,7 +36,7 @@ async function main() {
         console.log('Telegram Bot Polling Started.');
         botService.sendStartupMessage();
     })
-    .catch((err) => console.error('Failed to launch bot:', err));
+    .catch((err: any) => console.error('Failed to launch bot:', err));
 
   // Enable graceful stop
   process.once('SIGINT', () => bot.stop('SIGINT'));

@@ -1,3 +1,5 @@
+import { Telegraf, Markup } from 'telegraf';
+import { config } from './config.js';
 import { n8nService } from './n8n.js';
 import { brainService } from './brain.js';
 import { auditor } from './auditor.js';
@@ -7,7 +9,7 @@ export const bot = new Telegraf(config.telegram.token);
 const chatHistory: any[] = [];
 
 // Middleware to restrict access and LOG internally
-bot.use(async (ctx, next) => {
+bot.use(async (ctx: any, next: any) => {
   if (ctx.from?.id !== config.telegram.userId) {
     return ctx.reply('Unauthorized. This bot is property of the DevOps team.');
   }
@@ -17,13 +19,13 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
-bot.start((ctx) => ctx.reply('💀 Dave Jnr Online. Systems architected, servers monitored. Lead the way...'));
+bot.start((ctx: any) => ctx.reply('💀 Dave Jnr Online. Systems architected, servers monitored. Lead the way...'));
 
-bot.command('status', async (ctx) => {
+bot.command('status', async (ctx: any) => {
   ctx.reply('💀 Systems Operational. Connectivity to n8n is robust. Ready for deployment.');
 });
 
-bot.command('keys', (ctx) => {
+bot.command('keys', (ctx: any) => {
     let msg = `💀 *Dave Jnr Capabilities Matrix*\n\n`;
     msg += `*Commands:*\n`;
     msg += `• \`/status\`: System health check\n`;
@@ -39,13 +41,12 @@ bot.command('keys', (ctx) => {
     ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
-bot.command('dashboard', async (ctx) => {
-    // Generate a temporary magic link (for this v1, it's just the URL)
-    const dashboardUrl = `${config.n8n.baseUrl}/dashboard`; // We'll set this up in server.ts
+bot.command('dashboard', async (ctx: any) => {
+    const dashboardUrl = `${config.n8n.baseUrl}/dashboard`;
     ctx.reply(`📊 *Monitoring Hub:* [Dave Jnr Dashboard](${dashboardUrl})\n_Root access: Standard authorized session._`, { parse_mode: 'Markdown' });
 });
 
-bot.command('run', async (ctx) => {
+bot.command('run', async (ctx: any) => {
   const workflowId = ctx.payload;
   if (!workflowId) return ctx.reply('Usage: /run [workflow_id]');
   try {
@@ -56,7 +57,7 @@ bot.command('run', async (ctx) => {
   }
 });
 
-bot.command('activate', async (ctx) => {
+bot.command('activate', async (ctx: any) => {
   const workflowId = ctx.payload;
   if (!workflowId) return ctx.reply('Usage: /activate [id]');
   try {
@@ -67,7 +68,7 @@ bot.command('activate', async (ctx) => {
   }
 });
 
-bot.command('deactivate', async (ctx) => {
+bot.command('deactivate', async (ctx: any) => {
   const workflowId = ctx.payload;
   if (!workflowId) return ctx.reply('Usage: /deactivate [id]');
   try {
@@ -78,16 +79,14 @@ bot.command('deactivate', async (ctx) => {
   }
 });
 
-// Capture Sticker ID for future use
 let activeStickerId: string | null = null;
 
-bot.on('sticker', async (ctx) => {
+bot.on('sticker', async (ctx: any) => {
   const fileId = ctx.message.sticker.file_id;
   activeStickerId = fileId;
   ctx.reply(`💀 *Sticker Identified.* Root access granted. I will use this for my future high-priority alerts.`);
 });
 
-// Store pending fixes/architectures
 const pendingActions = new Map<string, any>();
 
 export const botService = {
@@ -129,7 +128,7 @@ export const botService = {
   }
 };
 
-bot.action(/action_skull_(.+)/, async (ctx) => {
+bot.action(/action_skull_(.+)/, async (ctx: any) => {
   const actionId = ctx.match?.[1];
   if (!actionId) return;
   const action = pendingActions.get(actionId);
@@ -148,13 +147,10 @@ bot.action(/action_skull_(.+)/, async (ctx) => {
   }
 });
 
-// Conversational Handler
-bot.on('text', async (ctx) => {
+bot.on('text', async (ctx: any) => {
   const msg = ctx.message.text.toLowerCase();
 
-  // Special case: "skull" approval
   if (msg === 'skull') {
-    // Find the most recent pending action
     const latestActionId = Array.from(pendingActions.keys()).pop();
     if (latestActionId) {
         const action = pendingActions.get(latestActionId);
@@ -170,7 +166,6 @@ bot.on('text', async (ctx) => {
     }
   }
 
-  // General Conversation via Gemini Function Calling
   try {
     const result = await brainService.chat(ctx.message.text, chatHistory);
     const call = result.response.functionCalls()?.[0];
@@ -184,7 +179,6 @@ bot.on('text', async (ctx) => {
         ]);
         ctx.reply(finalResponse.response.text(), { parse_mode: 'Markdown' });
     } else {
-        // Check if Gemini suggested an architecture
         const text = result.response.text();
         if (text.includes('{') && text.includes('nodes')) {
             try {
@@ -200,10 +194,9 @@ bot.on('text', async (ctx) => {
         }
     }
     
-    // Maintain history selectively
     chatHistory.push({ role: 'user', parts: [{ text: ctx.message.text }] });
     chatHistory.push({ role: 'model', parts: [{ text: result.response.text() }] });
-    if (chatHistory.length > 10) chatHistory.splice(0, 2);
+    if (chatHistory.length > 20) chatHistory.splice(0, 2);
 
   } catch (err: any) {
     ctx.reply(`💀 *Neural Error:* ${err.message}`);

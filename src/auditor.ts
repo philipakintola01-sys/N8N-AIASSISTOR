@@ -17,8 +17,10 @@ class AuditorService {
             timestamp: new Date(),
             type,
             details,
-            tokens
         };
+        if (tokens !== undefined) {
+            event.tokens = tokens;
+        }
         
         this.events.unshift(event);
         if (this.events.length > this.maxEvents) {
