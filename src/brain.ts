@@ -42,10 +42,12 @@ const tools = [
   }
 ];
 
+// Confirmed working free-tier model pool on OpenRouter
 const MODELS = [
-    config.openrouter.model,
-    'meta-llama/llama-3.1-405b-instruct:free',
-    'google/gemini-flash-1.5:free'
+    config.openrouter.model,                        // Primary: deepseek-chat:free
+    'meta-llama/llama-3.3-70b-instruct:free',       // Fallback 1
+    'google/gemma-3-27b-it:free',                   // Fallback 2
+    'mistralai/mistral-7b-instruct:free',           // Fallback 3
 ];
 
 async function callOpenRouterWithResilience(messages: any[], useTools = true) {

@@ -12,7 +12,7 @@ export const config = {
   },
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
-    model: process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free',
+    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat:free',
   },
   server: {
     port: Number(process.env.PORT) || 3000,
