@@ -79,7 +79,7 @@ async function callOpenRouterWithResilience(messages: any[], useTools = true) {
             return { data: response.data, usage, modelUsed: modelName, duration };
         } catch (err: any) {
             lastError = err;
-            if ([502, 503, 429].includes(err.response?.status) || err.code === 'ECONNABORTED') {
+            if ([404, 502, 503, 429].includes(err.response?.status) || err.code === 'ECONNABORTED') {
                 continue;
             }
             throw err;
