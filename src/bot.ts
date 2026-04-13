@@ -21,6 +21,16 @@ bot.use(async (ctx: any, next: any) => {
 
 bot.start((ctx: any) => ctx.reply('💀 Dave Jnr Online. Systems architected, servers monitored. Lead the way...'));
 
+bot.command('test', async (ctx: any) => {
+  try {
+    const result = await brainService.chat('Say "Dave Jnr neural connection confirmed 💀" and nothing else.');
+    ctx.reply(`✅ *Neural Test Passed:*\n${result.response.text()}`, { parse_mode: 'Markdown' });
+  } catch (err: any) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data).substring(0, 500) : err.message;
+    ctx.reply(`❌ *Neural Test Failed:*\n\`${detail}\``, { parse_mode: 'Markdown' });
+  }
+});
+
 bot.command('status', async (ctx: any) => {
   ctx.reply('💀 Systems Operational. Connectivity to n8n is robust. Ready for deployment.');
 });

@@ -79,7 +79,10 @@ async function callOpenRouterWithResilience(messages: any[], useTools = true) {
             return { data: response.data, usage, modelUsed: modelName, duration };
         } catch (err: any) {
             lastError = err;
-            if ([404, 502, 503, 429].includes(err.response?.status) || err.code === 'ECONNABORTED') {
+            const status = err.response?.status;
+            const detail = JSON.stringify(err.response?.data || err.message).substring(0, 200);
+            console.error(`[NEURAL] Model ${modelName} failed: ${status} — ${detail}`);
+            if ([404, 401, 402, 502, 503, 429].includes(status) || err.code === 'ECONNABORTED') {
                 continue;
             }
             throw err;
