@@ -181,5 +181,32 @@ export const brainService = {
       case 'trigger_workflow': return await services.n8n.triggerWorkflow(args.workflowId);
       default: throw new Error(`Unknown tool: ${name}`);
     }
+  },
+
+  async analyzeError(workflowJson: any, errorData: any) {
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Analyze n8n error: ${JSON.stringify(errorData.error)} 💀` }
+    ];
+    const { data } = await callOpenRouterWithResilience(messages, false);
+    return data.choices[0].message.content;
+  },
+
+  async suggestFixJson(workflowJson: any, diagnosis: string) {
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Fix n8n JSON: ${diagnosis}. Return ONLY JSON. 💀\nWorkflow: ${JSON.stringify(workflowJson)}` }
+    ];
+    const { data } = await callOpenRouterWithResilience(messages, false);
+    return JSON.parse(data.choices[0].message.content.replace(/```json|```/g, '').trim());
+  },
+
+  async analyzeChange(oldWorkflow: any, newWorkflow: any) {
+    const messages = [
+        { role: 'system', content: DEVOPS_PERSONA },
+        { role: 'user', content: `Breakdown changes: ${JSON.stringify(newWorkflow)} 💀` }
+    ];
+    const { data } = await callOpenRouterWithResilience(messages, false);
+    return data.choices[0].message.content;
   }
 };

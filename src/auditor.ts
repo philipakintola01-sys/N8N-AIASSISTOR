@@ -39,6 +39,11 @@ class AuditorService {
         console.log(`[EXECUTIVE AUDITOR] Finalized ${exec.execution_id} with status ${exec.status}`);
     }
 
+    // Compatibility wrapper for simple events
+    log(type: any, details: string) {
+        console.log(`[EVENT] ${type}: ${details}`);
+    }
+
     getExecutions() {
         return this.executions;
     }

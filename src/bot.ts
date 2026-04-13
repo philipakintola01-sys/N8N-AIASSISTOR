@@ -170,15 +170,13 @@ bot.on('text', async (ctx: any) => {
     const result = await brainService.chat(ctx.message.text, chatHistory);
     const call = result.response.functionCalls()?.[0];
 
-    if (call) {
-        const apiResult = await brainService.handleToolCall(call, { n8n: n8nService });
-        const finalResponse = await brainService.chat(JSON.stringify(apiResult), [
-            { role: 'user', parts: [{ text: ctx.message.text }] },
-            { role: 'model', parts: [{ functionCall: call }] },
-            { role: 'function', parts: [{ functionResponse: { name: call.name, response: apiResult } }] }
-        ]);
-        ctx.reply(finalResponse.response.text(), { parse_mode: 'Markdown' });
-    } else {
+        if (call) {
+            const apiResult = await brainService.handleToolCall(call, { n8n: n8nService });
+            const finalResponse = await brainService.chat(JSON.stringify(apiResult), [
+                { role: 'user', parts: [{ text: ctx.message.text }] }
+            ]);
+            ctx.reply(finalResponse.response.text(), { parse_mode: 'Markdown' });
+        } else {
         const text = result.response.text();
         if (text.includes('{') && text.includes('nodes')) {
             try {
