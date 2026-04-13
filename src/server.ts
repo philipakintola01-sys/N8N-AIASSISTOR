@@ -39,7 +39,7 @@ app.get('/monitor/share', (req: any, res: any) => {
 app.post('/monitor/generate-link', (req: any, res: any) => {
     const token = Math.random().toString(36).substring(2, 15);
     auditor.generateShareLink(token);
-    const shareUrl = `${config.n8n.baseUrl}/monitor/share?token=${token}`;
+    const shareUrl = `${config.server.appUrl}/monitor/share?token=${token}`;
     res.json({ url: shareUrl, expires_in: '300s' });
 });
 

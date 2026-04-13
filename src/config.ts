@@ -16,5 +16,6 @@ export const config = {
   },
   server: {
     port: Number(process.env.PORT) || 3000,
+    appUrl: process.env.APP_URL?.replace(/\/$/, '') || '',
   }
 };

@@ -42,8 +42,8 @@ bot.command('keys', (ctx: any) => {
 });
 
 bot.command('dashboard', async (ctx: any) => {
-    const dashboardUrl = `${config.n8n.baseUrl}/dashboard`;
-    ctx.reply(`📊 *Monitoring Hub:* [Dave Jnr Dashboard](${dashboardUrl})\n_Root access: Standard authorized session._`, { parse_mode: 'Markdown' });
+    const dashboardUrl = `${config.server.appUrl}/dashboard`;
+    ctx.reply(`📊 *Executive Hub:* [Dave Jnr Dashboard](${dashboardUrl})\n_Root access: Standard authorized session._`, { parse_mode: 'Markdown' });
 });
 
 bot.command('run', async (ctx: any) => {
