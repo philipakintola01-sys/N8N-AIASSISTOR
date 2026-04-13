@@ -51,7 +51,7 @@ bot.command('run', async (ctx: any) => {
   if (!workflowId) return ctx.reply('Usage: /run [workflow_id]');
   try {
     const result = await n8nService.triggerWorkflow(workflowId);
-    ctx.reply(`🚀 *Workflow Triggered:* Execution ID ${result.executionId}\n[View Execution](${config.n8n.baseUrl}/execution/${result.executionId})`, { parse_mode: 'Markdown' });
+    ctx.reply(`🚀 *Workflow Triggered* ✅\n${JSON.stringify(result?.response || 'Done')}`, { parse_mode: 'Markdown' });
   } catch (err: any) {
     ctx.reply(`❌ *Trigger Failed:* ${err.message}`);
   }
@@ -168,7 +168,7 @@ bot.on('text', async (ctx: any) => {
 
   try {
     const result = await brainService.chat(ctx.message.text, chatHistory);
-    const calls = result.response.functionCalls();
+    const calls = result.response.functionCalls() as any[];
 
     if (calls && calls.length > 0) {
         // Dave decided to use a tool — execute it and return final answer
